@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>模拟抢单系统 V2</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#f3f4f6;color:#1f2937;font-family:Arial,"Microsoft YaHei",sans-serif}
+.header{background:#111827;color:#fff;padding:18px 16px;position:sticky;top:0;z-index:20}.header h2{margin:0 0 5px;font-size:21px}.header p{margin:0;font-size:12px;opacity:.75}
+.tabs{display:flex;background:#fff;border-bottom:1px solid #eee;position:sticky;top:72px;z-index:15}.tab{flex:1;padding:13px 4px;text-align:center;font-weight:bold;color:#6b7280}.tab.active{color:#2563eb;border-bottom:2px solid #2563eb}
+.container{max-width:620px;margin:auto;padding:12px}.panel,.order{background:#fff;border-radius:14px;padding:14px;margin-bottom:12px;box-shadow:0 2px 10px rgba(0,0,0,.06)}
+.row{display:flex;gap:8px}.row>*{flex:1}input,select{width:100%;border:1px solid #d1d5db;border-radius:9px;padding:10px;font-size:14px;background:#fff}
+button{border:0;border-radius:9px;padding:10px 13px;font-size:14px;font-weight:bold}.blue{background:#2563eb;color:#fff}.green{background:#16a34a;color:#fff}.gray{background:#e5e7eb;color:#374151}.red{background:#dc2626;color:#fff}
+.switchline{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}.switch{width:48px;height:26px;border-radius:20px;background:#d1d5db;padding:3px}.switch i{display:block;width:20px;height:20px;border-radius:50%;background:#fff;transition:.2s}.switch.on{background:#2563eb}.switch.on i{transform:translateX(22px)}
+.order{position:relative;overflow:hidden}.new{animation:pop .45s ease}.flash{animation:flash .7s ease}@keyframes pop{0%{transform:scale(.94);opacity:0}100%{transform:scale(1);opacity:1}}@keyframes flash{0%{box-shadow:0 0 0 0 rgba(37,99,235,.5)}100%{box-shadow:0 0 0 12px rgba(37,99,235,0)}}
+.top{display:flex;justify-content:space-between;align-items:center}.id{font-weight:bold}.price{font-size:24px;color:#ef4444;font-weight:bold}.tag{display:inline-block;background:#eff6ff;color:#2563eb;border-radius:6px;padding:4px 7px;font-size:12px;margin:7px 0}
+.info{display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:13px;color:#4b5563}.info div{background:#f8fafc;padding:9px;border-radius:8px}.count{color:#dc2626;font-weight:bold}.take{width:100%;margin-top:11px}.disabled{background:#9ca3af!important}.empty{text-align:center;color:#9ca3af;padding:28px}
+.stat{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.stat div{background:#f8fafc;border-radius:10px;padding:10px;text-align:center}.stat b{display:block;font-size:20px;margin-top:4px}
+.admin-title{font-weight:bold;margin-bottom:10px}.history{font-size:13px}.historyitem{padding:10px 0;border-bottom:1px solid #eee}.notice{text-align:center;color:#9ca3af;font-size:12px;padding:8px}
+.toast{position:fixed;left:50%;bottom:30px;transform:translateX(-50%);background:#111827;color:#fff;padding:11px 16px;border-radius:10px;z-index:99;opacity:0;pointer-events:none;transition:.25s}.toast.show{opacity:1}
+</style>
+</head>
+<body>
+<div class="header"><h2>📦 模拟抢单系统 V2</h2><p>纯本地学习 Demo · 不连接第三方平台</p></div>
+<div class="tabs"><div class="tab active" onclick="switchTab('orders',this)">订单大厅</div><div class="tab" onclick="switchTab('admin',this)">模拟后台</div></div>
+
+<div class="container">
+<section id="ordersPage">
+<div class="panel">
+<div class="switchline"><b>自动刷新订单</b><div id="autoSwitch" class="switch on" onclick="toggleAuto()"><i></i></div></div>
+<div style="font-size:12px;color:#6b7280;margin-bottom:10px">刷新间隔：<span id="intervalText">5</span> 秒</div>
+<input id="intervalInput" type="range" min="2" max="15" value="5" oninput="setIntervalTime(this.value)">
+</div>
+
+<div class="panel">
+<b>筛选条件</b>
+<div class="row" style="margin-top:10px"><input id="minPrice" type="number" placeholder="最低金额"><input id="maxDistance" type="number" placeholder="最大距离"></div>
+<div class="row" style="margin-top:8px"><select id="typeFilter"><option value="">全部类型</option><option>配送测试</option><option>跑腿测试</option><option>文件测试</option><option>物品测试</option><option>普通任务</option><option>紧急测试</option></select><button class="gray" onclick="clearFilter()">清除筛选</button></div>
+</div>
+
+<div class="panel stat"><div>待接单<b id="waiting">0</b></div><div>已接单<b id="taken">0</b></div><div>总金额<b id="totalMoney">¥0</b></div></div>
+
+<div id="orders"></div>
+
+<div class="panel"><b>📋 我的接单记录</b><div id="history" class="history"><div class="empty">暂无记录</div></div></div>
+</section>
+
+<section id="adminPage" style="display:none">
+<div class="panel">
+<div class="admin-title">🛠 模拟后台发布订单</div>
+<div class="row"><input id="adminPrice" type="number" value="50" placeholder="金额"><input id="adminDistance" type="number" step=".1" value="3" placeholder="距离"></div>
+<div class="row" style="margin-top:8px"><select id="adminType"><option>配送测试</option><option>跑腿测试</option><option>文件测试</option><option>物品测试</option><option>普通任务</option><option>紧急测试</option></select><input id="adminTime" type="number" value="20" placeholder="预计分钟"></div>
+<button class="blue" style="width:100%;margin-top:10px" onclick="publishOrder()">➕ 发布新订单</button>
+</div>
+<div class="panel"><b>后台订单管理</b><div id="adminList" class="history"></div></div>
+</section>
+
+<div class="notice">本页面仅模拟订单系统，用于网页开发与自动化测试学习。</div>
+</div>
+<div id="toast" class="toast"></div>
+
+<script>
+let orders=[],history=[],counter=10001,auto=true,intervalSec=5,timer=null;
+const types=["配送测试","跑腿测试","文件测试","物品测试","普通任务","紧急测试"];
+
+function randomOrder(){
+ return {id:counter++,type:types[Math.floor(Math.random()*types.length)],price:Math.floor(Math.random()*81)+20,distance:Number((Math.random()*9+1).toFixed(1)),time:Math.floor(Math.random()*30)+10,status:"等待接单",created:Date.now(),expires:Date.now()+20000};
+}
+function seed(){for(let i=0;i<5;i++)orders.push(randomOrder());renderAll()}
+function renderAll(){renderOrders();renderHistory();renderStats();renderAdmin()}
+function renderOrders(){
+ const c=document.getElementById("orders"),min=Number(document.getElementById("minPrice").value)||0,max=Number(document.getElementById("maxDistance").value)||999999,type=document.getElementById("typeFilter").value;
+ const f=orders.filter(o=>o.status==="等待接单"&&o.price>=min&&o.distance<=max&&(!type||o.type===type));
+ if(!f.length){c.innerHTML='<div class="panel empty">没有符合条件的订单</div>';return}
+ c.innerHTML=f.map(o=>`<div class="order ${Date.now()-o.created<1000?'new':''}" id="o${o.id}">
+ <div class="top"><span class="id">订单 #${o.id}</span><span class="price">¥${o.price}</span></div>
+ <span class="tag">${o.type}</span>
+ <div class="info"><div>📍 距离：${o.distance} km</div><div>⏱ 预计：${o.time} 分钟</div><div>🟢 状态：等待接单</div><div>⌛ 剩余：<span class="count" id="c${o.id}">--</span></div></div>
+ <button class="take green" onclick="takeOrder(${o.id})">立即接单</button></div>`).join("");
+}
+function takeOrder(id){
+ const o=orders.find(x=>x.id===id);if(!o||o.status!=="等待接单")return;
+ if(Date.now()>o.expires){o.status="已过期";renderAll();toast("订单已过期");return}
+ o.status="已接单";history.unshift({...o,takeTime:new Date().toLocaleTimeString()});
+ const el=document.getElementById("o"+id);if(el){el.classList.add("flash")}
+ renderAll();toast("🎉 接单成功！订单 #"+id);
+}
+function renderHistory(){
+ const c=document.getElementById("history");if(!history.length){c.innerHTML='<div class="empty">暂无记录</div>';return}
+ c.innerHTML=history.map(o=>`<div class="historyitem"><b>#${o.id}</b>　<span style="color:#16a34a">已接单</span><br>¥${o.price}　${o.distance} km　${o.takeTime}</div>`).join("");
+}
+function renderStats(){document.getElementById("waiting").textContent=orders.filter(o=>o.status==="等待接单").length;document.getElementById("taken").textContent=history.length;document.getElementById("totalMoney").textContent="¥"+history.reduce((s,o)=>s+o.price,0)}
+function renderAdmin(){
+ const c=document.getElementById("adminList");if(!orders.length){c.innerHTML='<div class="empty">暂无订单</div>';return}
+ c.innerHTML=orders.slice().reverse().map(o=>`<div class="historyitem"><b>#${o.id}</b>　${o.type}　¥${o.price}<br>距离 ${o.distance} km　状态：${o.status}<br><button class="gray" style="margin-top:6px" onclick="deleteOrder(${o.id})">删除</button></div>`).join("");
+}
+function publishOrder(){
+ const price=Number(document.getElementById("adminPrice").value)||50,distance=Number(document.getElementById("adminDistance").value)||3,time=Number(document.getElementById("adminTime").value)||20,type=document.getElementById("adminType").value;
+ orders.push({id:counter++,type,price,distance,time,status:"等待接单",created:Date.now(),expires:Date.now()+20000});
+ renderAll();switchTab("orders",document.querySelectorAll(".tab")[0]);toast("📢 新订单已发布");
+}
+function deleteOrder(id){orders=orders.filter(o=>o.id!==id);renderAll();toast("订单已删除")}
+function clearFilter(){document.getElementById("minPrice").value="";document.getElementById("maxDistance").value="";document.getElementById("typeFilter").value="";renderOrders()}
+function toggleAuto(){auto=!auto;document.getElementById("autoSwitch").classList.toggle("on",auto);resetTimer();toast(auto?"自动刷新已开启":"自动刷新已关闭")}
+function setIntervalTime(v){intervalSec=Number(v);document.getElementById("intervalText").textContent=v;resetTimer()}
+function resetTimer(){clearInterval(timer);if(auto)timer=setInterval(()=>{orders.push(randomOrder());cleanup();renderAll();toast("🔄 已模拟刷新订单")},intervalSec*1000)}
+function cleanup(){const now=Date.now();orders.forEach(o=>{if(o.status==="等待接单"&&now>o.expires)o.status="已过期"});if(orders.length>30)orders=orders.slice(-30)}
+function countdown(){
+ const now=Date.now();orders.forEach(o=>{const el=document.getElementById("c"+o.id);if(el&&o.status==="等待接单"){let s=Math.max(0,Math.ceil((o.expires-now)/1000));el.textContent=s+" 秒";if(s===0){o.status="已过期";renderAll()}}});}
+function switchTab(tab,el){document.getElementById("ordersPage").style.display=tab==="orders"?"block":"none";document.getElementById("adminPage").style.display=tab==="admin"?"block":"none";document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));el.classList.add("active");if(tab==="admin")renderAdmin()}
+function toast(msg){const t=document.getElementById("toast");t.textContent=msg;t.classList.add("show");clearTimeout(window._toast);window._toast=setTimeout(()=>t.classList.remove("show"),1500)}
+["minPrice","maxDistance","typeFilter"].forEach(id=>document.getElementById(id).addEventListener("input",renderOrders));
+seed();resetTimer();setInterval(countdown,500);
+</script>
+</body>
+</html>
